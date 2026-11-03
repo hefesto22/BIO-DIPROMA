@@ -1,0 +1,3 @@
+# Carpeta de migraciones SQL versionadas.
+# Formato: NNN_descripcion.sql (ej: 001_init.sql, 002_auth_tables.sql).
+# Cada migración se aplica una sola vez y queda registrada en la tabla schema_migrations.

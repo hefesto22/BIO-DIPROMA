@@ -1,0 +1,13 @@
+[flake8]
+max-line-length = 100
+# E203 y W503 los viola black a propósito — son estilo PEP 8 viejo.
+# Ignorarlos para que black + flake8 convivan sin fricción.
+extend-ignore = E203, W503
+exclude =
+    venv,
+    .venv,
+    __pycache__,
+    .pytest_cache,
+    .mypy_cache,
+    build,
+    dist

@@ -1,0 +1,2 @@
+# Assets — recursos estáticos: íconos, logo de la Municipalidad, imágenes de UI.
+# Se empaquetan dentro del .exe con PyInstaller (data files).

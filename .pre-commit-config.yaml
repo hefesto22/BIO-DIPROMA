@@ -1,0 +1,94 @@
+# Configuración de pre-commit para BioMuni — Municipalidad de Ocotepeque.
+#
+# Instalar los hooks (una vez por clon del repo):
+#
+#   pre-commit install
+#
+# Correr manualmente sobre TODOS los archivos (útil para auditar tras
+# editar este yaml o tras mezclar una rama externa):
+#
+#   pre-commit run --all-files
+#
+# Bypass de emergencia (requiere aprobación explícita del lead según
+# las reglas del proyecto):
+#
+#   git commit --no-verify
+#
+# Estrategia:
+#   - Hooks de housekeeping (whitespace, EOF, yaml/toml válidos) desde
+#     el repo oficial, pinneados a v5.0.0.
+#   - Los 4 gates del proyecto (black, flake8, mypy --strict, pytest)
+#     corren como hooks "local" con el binario del venv — así nunca
+#     hay drift de versión entre los gates manuales y el pre-commit.
+
+# Exclusiones globales para cualquier hook. Rutas que podrían aparecer
+# stageadas por accidente pero que NO queremos reformatear jamás.
+exclude: |
+  (?x)^(
+    venv/.*|
+    \.venv/.*|
+    build/.*|
+    dist/.*|
+    .*\.egg-info/.*|
+    requirements\.lock|
+    .*\.db|
+    .*\.db-wal|
+    .*\.db-shm
+  )$
+
+repos:
+  # ── Housekeeping ────────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        description: Limpia espacios al final de cada línea.
+      - id: end-of-file-fixer
+        description: Asegura exactamente un '\n' al final del archivo.
+      - id: check-yaml
+        description: Valida sintaxis de archivos YAML.
+      - id: check-toml
+        description: Valida sintaxis de archivos TOML.
+      - id: check-merge-conflict
+        description: Impide commitear marcadores de merge sin resolver.
+      - id: check-added-large-files
+        description: Bloquea archivos > 500 KB stageados por error.
+        args: ["--maxkb=500"]
+
+  # ── Gates del proyecto (mismos binarios que los gates manuales) ────────
+  - repo: local
+    hooks:
+      - id: black
+        name: black (format check)
+        description: Verifica formato. Si falla, corré `black .` para reformatear.
+        entry: black --check --line-length 100
+        language: system
+        types: [python]
+
+      - id: flake8
+        name: flake8
+        description: Linter PEP 8 (config en .flake8).
+        entry: flake8
+        language: system
+        types: [python]
+
+      - id: mypy
+        name: mypy --strict
+        description: Tipado estricto sobre las capas de producción.
+        # mypy necesita ver el árbol completo para resolver imports
+        # cruzados — pass_filenames=false y always_run=true fuerzan a
+        # ignorar los archivos staged y analizar siempre las mismas raíces.
+        entry: mypy --strict --ignore-missing-imports ui/ main.py core/ infrastructure/ config.py bin/
+        language: system
+        pass_filenames: false
+        always_run: true
+        types: [python]
+
+      - id: pytest-unit
+        name: pytest (unit)
+        description: Suite unitaria rápida (~2s). Bloquea commit si rompe un test.
+        entry: pytest tests/unit -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        types: [python]

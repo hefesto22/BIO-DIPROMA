@@ -1,0 +1,90 @@
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+.installed.cfg
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ─── Entornos virtuales ───────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ─── Testing / cobertura / tipado ─────────────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.hypothesis/
+
+# ─── PyInstaller ──────────────────────────────────────────────────────────────
+# Build artifacts, pero *.spec SÍ se versiona (configuración del build).
+build/
+dist/
+*.manifest
+# NO ignorar: *.spec
+
+# ─── Base de datos local (dev) ────────────────────────────────────────────────
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Runtime data (Fase 6 — modo portable) ───────────────────────────────────
+# data/ contiene la BD, logs y exports cuando la app corre como bundle
+# PyInstaller. En dev también se crea aquí — siempre se ignora.
+data/
+
+# ─── Secretos y configuración local ───────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+secrets.json
+credentials.json
+
+# ─── Sistema operativo ────────────────────────────────────────────────────────
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ─── Editores / IDEs ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.cursor/
+*.sublime-workspace
+*.sublime-project
+*.swp
+*.swo
+*~
+
+# ─── Misc ─────────────────────────────────────────────────────────────────────
+*.bak
+*.tmp

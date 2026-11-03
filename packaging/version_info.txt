@@ -1,0 +1,72 @@
+# =============================================================================
+# Metadatos VS_VERSIONINFO para zkteco.exe
+# =============================================================================
+#
+# Lo lee PyInstaller en `zkteco.spec` (parámetro ``version=`` de EXE) y lo
+# empotra como recurso del .exe. Aparece en clic-derecho → Propiedades →
+# pestaña "Detalles" del ejecutable en Windows.
+#
+# Mantenemos los valores en sincronía manual con ``config.py``:
+#     APP_NAME    = "BIO-DIPROMA"
+#     APP_VENDOR  = "DIPROMA"
+#     APP_AUTHOR  = "Grupo Olympo"
+#     APP_VERSION = "0.1.0"   →   (0, 1, 0, 0) en formato Windows (4 enteros)
+#
+# Locale: 0x480A = Spanish (Honduras). Codepage: 1200 = UTF-16LE (Unicode).
+# StringFileInfo lang-codepage = "480A04B0".
+#
+# Cuando suba la versión:
+#     1. Actualizar APP_VERSION en config.py.
+#     2. Actualizar filevers, prodvers, FileVersion y ProductVersion aquí.
+#     3. Conventional Commit: chore(release): bump version to X.Y.Z
+# =============================================================================
+
+VSVersionInfo(
+    ffi=FixedFileInfo(
+        # Versión del archivo (ejecutable). Formato Windows: 4 enteros 16-bit.
+        filevers=(0, 1, 0, 0),
+        # Versión del producto. Suele coincidir con filevers.
+        prodvers=(0, 1, 0, 0),
+        # Bits de validez de los campos: 0x3f = todos los campos siguientes válidos.
+        mask=0x3F,
+        # Flags VS_FF_*: 0 = release. Para builds especiales (debug, prerelease)
+        # se podrían combinar 0x1 (DEBUG), 0x2 (PRERELEASE), etc.
+        flags=0x0,
+        # OS objetivo: 0x40004 = VOS_NT_WINDOWS32 (Windows NT de 32+ bits).
+        OS=0x40004,
+        # Tipo de archivo: 0x1 = VFT_APP (aplicación).
+        fileType=0x1,
+        # Subtipo: 0x0 para apps; aplica a drivers y fuentes principalmente.
+        subtype=0x0,
+        # Fecha de compilación: (0, 0) = no especificada.
+        date=(0, 0),
+    ),
+    kids=[
+        StringFileInfo(
+            [
+                StringTable(
+                    "480A04B0",  # Spanish (Honduras) + Unicode
+                    [
+                        StringStruct("CompanyName", "DIPROMA"),
+                        StringStruct(
+                            "FileDescription",
+                            "BIO-DIPROMA — Sistema de Asistencia Biométrica",
+                        ),
+                        StringStruct("FileVersion", "0.1.0.0"),
+                        StringStruct("InternalName", "biomuni"),
+                        StringStruct(
+                            "LegalCopyright",
+                            "Copyright (c) 2026 Grupo Olympo. Todos los derechos reservados.",
+                        ),
+                        StringStruct("OriginalFilename", "zkteco.exe"),
+                        StringStruct("ProductName", "BIO-DIPROMA"),
+                        StringStruct("ProductVersion", "0.1.0.0"),
+                    ],
+                )
+            ]
+        ),
+        # Mapa idioma→codepage que el explorador de Windows usa para elegir la
+        # tabla correcta. Coincide con el StringTable de arriba.
+        VarFileInfo([VarStruct("Translation", [0x480A, 1200])]),
+    ],
+)

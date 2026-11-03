@@ -1,0 +1,36 @@
+# Configuración de herramientas de desarrollo.
+# El proyecto se entrega como .exe vía PyInstaller — no se publica a PyPI.
+# Aquí solo centralizamos config de pytest, black, flake8 y mypy.
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+# pythonpath="." permite que los tests hagan `from infrastructure...` sin instalar
+# el proyecto como paquete pip.
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+markers = [
+    "hardware: pruebas que requieren un ZKTeco real (excluidas por defecto en CI)",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+# Libs externas sin type stubs conocidos — evita ruido en mypy.
+[[tool.mypy.overrides]]
+module = ["zk", "zk.*", "customtkinter", "customtkinter.*", "tkcalendar", "tkcalendar.*"]
+ignore_missing_imports = true
+
+# Las vistas y componentes reutilizables subclass CTkFrame; sin stubs
+# ``CTkFrame`` es ``Any`` y mypy --strict bloquea el subclassing.
+# Acotamos la excepción SOLO a la capa de presentación Tk.
+[[tool.mypy.overrides]]
+module = ["ui.views.*", "ui.components.*"]
+disallow_subclassing_any = false

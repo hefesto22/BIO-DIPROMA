@@ -1,0 +1,21 @@
+-- 008_turnos_multiples.sql — Sub-3.2.B
+--
+-- Permite que un empleado tenga MÚLTIPLES asignaciones de turno
+-- vigentes simultáneamente. Cada asignación cubre los días de su
+-- bitmask (``turnos.dias_semana``) y la regla de negocio es que entre
+-- todas las vigentes los días NO se solapan.
+--
+-- Caso real: lunes a viernes el empleado trabaja 8-17 (turno A) y los
+-- sábados 8-13 (turno B). Antes solo se podía modelar como un único
+-- turno con horario fijo, lo que no permite horarios distintos por
+-- día.
+--
+-- Cambio físico:
+--   · Drop del índice parcial único `idx_empleado_turnos_vigente_unico`
+--     que impedía tener > 1 fila con `fecha_fin IS NULL` por empleado.
+--
+-- La invariante "los bitmasks no se solapan" se sigue validando en el
+-- ``EmpleadoService`` porque depende de la tabla ``turnos`` (otra
+-- tabla, joins en CHECK constraints son inviables en SQLite estándar).
+
+DROP INDEX IF EXISTS idx_empleado_turnos_vigente_unico;

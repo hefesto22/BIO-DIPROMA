@@ -1,0 +1,28 @@
+# BIO-DIPROMA · dependencias de desarrollo
+# Incluye TODO lo de producción + herramientas de dev (testing, linters, hooks).
+# NO se incluyen en el .exe final.
+#
+# Instalar con:
+#   pip install -r requirements-dev.txt
+
+-r requirements.txt
+
+# Testing
+pytest>=8.0,<9.0
+pytest-cov>=5.0,<7.0
+
+# Formato y estilo
+black>=24.0,<26.0
+flake8>=7.0,<8.0
+
+# Tipado estático
+mypy>=1.11,<2.0
+# Stubs: openpyxl no incluye types en su wheel; los traemos desde typeshed.
+types-openpyxl>=3.1
+
+# Hooks pre-commit (black + flake8 + mypy + pytest rápidos)
+pre-commit>=3.5,<5.0
+
+# Empaquetado Windows (Fase 6). Se usa solo para producir zkteco.exe;
+# nunca se incluye dentro del bundle final (ver excludes en zkteco.spec).
+pyinstaller>=6.0,<7.0
