@@ -9,6 +9,8 @@ import pytest
 import config
 from core.models.turno import DIAS_LABORALES, SABADO
 from core.repositories.audit_log_repository_sqlite import AuditLogRepositorySQLite
+from core.repositories.cargo_repository_sqlite import CargoRepositorySQLite
+from core.repositories.departamento_repository_sqlite import DepartamentoRepositorySQLite
 from core.repositories.rol_repository_sqlite import RolRepositorySQLite
 from core.repositories.turno_repository_sqlite import TurnoRepositorySQLite
 from core.repositories.usuario_repository_sqlite import UsuarioRepositorySQLite
@@ -29,12 +31,18 @@ def db(tmp_path: Path) -> Database:
 def _servicio(db: Database) -> InstalacionService:
     usuarios = UsuarioRepositorySQLite(db)
     turnos = TurnoRepositorySQLite(db)
+    departamentos = DepartamentoRepositorySQLite(db)
+    cargos = CargoRepositorySQLite(db)
     return InstalacionService(
         usuario_read=usuarios,
         usuario_write=usuarios,
         rol_read=RolRepositorySQLite(db),
         turno_read=turnos,
         turno_write=turnos,
+        dep_read=departamentos,
+        dep_write=departamentos,
+        cargo_read=cargos,
+        cargo_write=cargos,
         hasher=BcryptHasher(12),
         audit_logger=AuditLogger(AuditLogRepositorySQLite(db)),
     )
@@ -83,6 +91,16 @@ def test_turno_operativo_de_7_a_5_con_almuerzo_y_sabado(db: Database) -> None:
     assert sabado.almuerzo_inicio is None
 
 
+def test_departamento_contenedor_y_cargo_usuario(db: Database) -> None:
+    resultado = _servicio(db).preparar()
+    assert (resultado.departamento, resultado.cargo) == ("Contenedor", "Usuario")
+    (dep,) = DepartamentoRepositorySQLite(db).list_all()
+    (cargo,) = CargoRepositorySQLite(db).list_all()
+    assert (dep.nombre, dep.is_active) == ("Contenedor", True)
+    # Global: sirve también en los departamentos que se agreguen después.
+    assert (cargo.nombre, cargo.is_active, cargo.departamento_id) == ("Usuario", True, None)
+
+
 def test_no_hace_nada_en_una_base_en_uso(db: Database) -> None:
     servicio = _servicio(db)
     servicio.preparar()
@@ -90,6 +108,16 @@ def test_no_hace_nada_en_una_base_en_uso(db: Database) -> None:
     assert not segundo.hizo_algo
     assert len(UsuarioRepositorySQLite(db).list_all()) == 2
     assert len(TurnoRepositorySQLite(db).list_all()) == 1
+    assert len(DepartamentoRepositorySQLite(db).list_all()) == 1
+    assert len(CargoRepositorySQLite(db).list_all()) == 1
+
+
+def test_respeta_los_catalogos_que_ya_existen(db: Database) -> None:
+    with db.transaction() as conn:
+        conn.execute("INSERT INTO departamentos (nombre) VALUES ('Bodega')")
+    resultado = _servicio(db).preparar()
+    assert resultado.departamento is None and resultado.cargo == "Usuario"
+    assert [d.nombre for d in DepartamentoRepositorySQLite(db).list_all()] == ["Bodega"]
 
 
 def test_si_ya_hay_turnos_solo_crea_los_usuarios(db: Database) -> None:

@@ -125,6 +125,9 @@ flujo de instalación en el equipo destino:
    - `administrador` / `12345678` — Administrador (acceso total).
    - Turno **Operativo**: lunes a viernes 07:00–17:00 con almuerzo de
      12:00 a 13:00, sábado 07:00–12:00.
+   - Departamento **Contenedor** y cargo **Usuario**: el formulario de
+     empleado ya los trae elegidos, así se registra personal sin configurar
+     nada antes.
 
    Conviene cambiar las dos contraseñas desde **Usuarios y roles**. El Setup
    Wizard solo aparece si esa creación falla.

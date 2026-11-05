@@ -10,14 +10,20 @@ Cuando la base de datos está recién creada (sin ningún usuario), se crean:
     Usuarios y roles). No pasa por la política de contraseñas: es la
     decisión de quien instala.
 
-Y, si no hay ningún turno, el turno **Operativo**:
+Si no hay ningún turno, el turno **Operativo**:
 
     - Lunes a viernes de 07:00 a 17:00, con almuerzo de 12:00 a 13:00.
     - Sábado de 07:00 a 12:00, sin almuerzo.
 
+Y, si no hay catálogos, el departamento **Contenedor** y el cargo
+**Usuario** (global: sirve en cualquier departamento). Así se pueden
+registrar empleados desde el primer día sin configurar nada: el
+formulario de empleado ya los trae elegidos junto con el turno.
+
 Se usa al abrir la app (antes del login) y desde ``bin.crear_admin``. Es
-idempotente: en una base que ya tiene usuarios no crea usuarios, y si ya
-hay turnos no crea el turno. Una instalación existente no cambia.
+idempotente: en una base que ya tiene usuarios no crea usuarios, si ya hay
+turnos no crea el turno, y lo mismo con departamentos y cargos. Una
+instalación existente no cambia.
 """
 
 from __future__ import annotations
@@ -28,8 +34,15 @@ from dataclasses import dataclass
 from typing import Final, List, Optional, Tuple
 
 from core.models import permissions as perms
+from core.models.cargo import Cargo
+from core.models.departamento import Departamento
 from core.models.turno import DIAS_LABORALES, SABADO, HorarioTurno
 from core.models.usuario import Usuario
+from core.repositories.cargo_repository import ICargoReadRepository, ICargoWriteRepository
+from core.repositories.departamento_repository import (
+    IDepartamentoReadRepository,
+    IDepartamentoWriteRepository,
+)
 from core.repositories.rol_repository import IRolReadRepository
 from core.repositories.turno_repository import ITurnoReadRepository, ITurnoWriteRepository
 from core.repositories.usuario_repository import (
@@ -70,6 +83,9 @@ class TurnoInicial:
 
 TURNO_INICIAL: Final = TurnoInicial()
 
+DEPARTAMENTO_INICIAL: Final[str] = "Contenedor"
+CARGO_INICIAL: Final[str] = "Usuario"
+
 
 @dataclass(frozen=True)
 class ResultadoInstalacion:
@@ -77,14 +93,16 @@ class ResultadoInstalacion:
 
     usuarios: Tuple[str, ...] = ()
     turno: Optional[str] = None
+    departamento: Optional[str] = None
+    cargo: Optional[str] = None
 
     @property
     def hizo_algo(self) -> bool:
-        return bool(self.usuarios or self.turno)
+        return bool(self.usuarios or self.turno or self.departamento or self.cargo)
 
 
 class InstalacionService:
-    """Crea los usuarios y el turno de una instalación nueva."""
+    """Crea los usuarios, el turno y los catálogos de una instalación nueva."""
 
     def __init__(
         self,
@@ -93,9 +111,17 @@ class InstalacionService:
         rol_read: IRolReadRepository,
         turno_read: ITurnoReadRepository,
         turno_write: ITurnoWriteRepository,
+        dep_read: IDepartamentoReadRepository,
+        dep_write: IDepartamentoWriteRepository,
+        cargo_read: ICargoReadRepository,
+        cargo_write: ICargoWriteRepository,
         hasher: BcryptHasher,
         audit_logger: AuditLogger,
     ) -> None:
+        self._dep_read = dep_read
+        self._dep_write = dep_write
+        self._cargo_read = cargo_read
+        self._cargo_write = cargo_write
         self._usuario_read = usuario_read
         self._usuario_write = usuario_write
         self._rol_read = rol_read
@@ -160,16 +186,39 @@ class InstalacionService:
             )
             turno = t.nombre
 
-        resultado = ResultadoInstalacion(usuarios=tuple(creados), turno=turno)
+        departamento: Optional[str] = None
+        if not self._dep_read.list_all():
+            self._dep_write.create(Departamento(id=None, nombre=DEPARTAMENTO_INICIAL))
+            departamento = DEPARTAMENTO_INICIAL
+        cargo: Optional[str] = None
+        if not self._cargo_read.list_all():
+            self._cargo_write.create(Cargo(id=None, nombre=CARGO_INICIAL))
+            cargo = CARGO_INICIAL
+
+        resultado = ResultadoInstalacion(
+            usuarios=tuple(creados), turno=turno, departamento=departamento, cargo=cargo
+        )
         if resultado.hizo_algo:
             self._audit.log(
                 action="instalacion_inicial",
                 user_id=actor,
                 details=json.dumps(
-                    {"usuarios": list(resultado.usuarios), "turno": turno}, ensure_ascii=False
+                    {
+                        "usuarios": list(resultado.usuarios),
+                        "turno": turno,
+                        "departamento": departamento,
+                        "cargo": cargo,
+                    },
+                    ensure_ascii=False,
                 ),
             )
-            self._log.info("Instalación nueva: usuarios=%s turno=%s", creados, turno)
+            self._log.info(
+                "Instalación nueva: usuarios=%s turno=%s departamento=%s cargo=%s",
+                creados,
+                turno,
+                departamento,
+                cargo,
+            )
         return resultado
 
     def _crear_usuario(self, inicial: UsuarioInicial, clave: str) -> Usuario:

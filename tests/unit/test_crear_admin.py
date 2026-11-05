@@ -29,14 +29,19 @@ def test_bd_nueva_queda_con_superadmin_y_administrador(tmp_path: Path) -> None:
         assert BcryptHasher(12).verify("12345678", usuario.password_hash)
 
 
-def test_no_crea_empleados_ni_datos_de_ejemplo_solo_el_turno_operativo(tmp_path: Path) -> None:
+def test_no_crea_empleados_solo_turno_departamento_y_cargo(tmp_path: Path) -> None:
     db_path = tmp_path / "zkteco_app.db"
     crear_admin.main(["--db-path", str(db_path)])
     with Database(db_path).transaction() as conn:
-        for tabla in ("empleados", "departamentos", "dispositivos", "asistencias"):
+        for tabla in ("empleados", "dispositivos", "asistencias"):
             assert conn.execute(f"SELECT COUNT(*) FROM {tabla}").fetchone()[0] == 0
-        turnos = conn.execute("SELECT nombre FROM turnos").fetchall()
-    assert [t[0] for t in turnos] == ["Operativo"]
+
+        def nombres(tabla: str) -> list[str]:
+            return [f[0] for f in conn.execute(f"SELECT nombre FROM {tabla}").fetchall()]
+
+        assert nombres("turnos") == ["Operativo"]
+        assert nombres("departamentos") == ["Contenedor"]
+        assert nombres("cargos") == ["Usuario"]
 
 
 def test_correrlo_otra_vez_restablece_la_clave_y_destraba(tmp_path: Path) -> None:

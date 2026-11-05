@@ -186,8 +186,9 @@ def run() -> int:
         return 2
 
     # Instalación nueva: crea admin (Super Administrador) y administrador
-    # (Administrador), los dos con 12345678, y el turno Operativo. En una
-    # base que ya está en uso no hace nada.
+    # (Administrador), los dos con 12345678, el turno Operativo, el
+    # departamento Contenedor y el cargo Usuario. En una base que ya está
+    # en uso no hace nada.
     _preparar_instalacion(database, log)
 
     # Sub-3.1 production-ready: snapshot diario de la BD ANTES de que el
@@ -242,12 +243,18 @@ def _preparar_instalacion(database: Database, log: logging.Logger) -> None:
     try:
         usuarios = UsuarioRepositorySQLite(database)
         turnos = TurnoRepositorySQLite(database)
+        departamentos = DepartamentoRepositorySQLite(database)
+        cargos = CargoRepositorySQLite(database)
         resultado = InstalacionService(
             usuario_read=usuarios,
             usuario_write=usuarios,
             rol_read=RolRepositorySQLite(database),
             turno_read=turnos,
             turno_write=turnos,
+            dep_read=departamentos,
+            dep_write=departamentos,
+            cargo_read=cargos,
+            cargo_write=cargos,
             hasher=BcryptHasher(config.BCRYPT_COST_FACTOR),
             audit_logger=AuditLogger(AuditLogRepositorySQLite(database)),
         ).preparar()
@@ -256,9 +263,11 @@ def _preparar_instalacion(database: Database, log: logging.Logger) -> None:
         return
     if resultado.hizo_algo:
         log.info(
-            "Instalación nueva preparada: usuarios=%s turno=%s",
+            "Instalación nueva preparada: usuarios=%s turno=%s departamento=%s cargo=%s",
             ", ".join(resultado.usuarios) or "—",
             resultado.turno or "—",
+            resultado.departamento or "—",
+            resultado.cargo or "—",
         )
 
 
