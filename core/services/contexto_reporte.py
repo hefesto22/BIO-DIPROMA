@@ -135,6 +135,8 @@ class ContextoReporte:
                         entrada=del_dia.hora_entrada,
                         salida=del_dia.hora_salida,
                         cruza_medianoche=del_dia.cruza_medianoche,
+                        almuerzo_inicio=del_dia.almuerzo_inicio,
+                        almuerzo_fin=del_dia.almuerzo_fin,
                     )
         return horarios
 

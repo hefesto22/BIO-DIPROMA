@@ -71,6 +71,7 @@ from core.services.dispositivo_config_service import DispositivoConfigService
 from core.services.empleado_service import EmpleadoService
 from core.services.diagnostico_reloj_service import DiagnosticoRelojService
 from core.services.feriado_service import FeriadoService
+from core.services.instalacion_service import InstalacionService
 from core.services.recepcion_push_service import RecepcionPushService
 from core.services.password_policy import PasswordPolicy
 from core.services.permission_service import PermissionService
@@ -184,6 +185,11 @@ def run() -> int:
     if not _run_migrations(database, log):
         return 2
 
+    # Instalación nueva: crea admin (Super Administrador) y administrador
+    # (Administrador), los dos con 12345678, y el turno Operativo. En una
+    # base que ya está en uso no hace nada.
+    _preparar_instalacion(database, log)
+
     # Sub-3.1 production-ready: snapshot diario de la BD ANTES de que el
     # operador toque nada. Si falla (disco lleno, permisos), loguea pero
     # no aborta — perder un backup ocasional es preferible a impedir el
@@ -225,6 +231,35 @@ def _iniciar_recepcion_push(services: _Services, log: logging.Logger) -> None:
         return
     if hay_push:
         services.servidor_push.iniciar()
+
+
+def _preparar_instalacion(database: Database, log: logging.Logger) -> None:
+    """Usuarios y turno por defecto de una instalación nueva.
+
+    Si falla, la app sigue: sin usuarios se muestra el asistente de primer
+    uso para crear el Super Administrador a mano.
+    """
+    try:
+        usuarios = UsuarioRepositorySQLite(database)
+        turnos = TurnoRepositorySQLite(database)
+        resultado = InstalacionService(
+            usuario_read=usuarios,
+            usuario_write=usuarios,
+            rol_read=RolRepositorySQLite(database),
+            turno_read=turnos,
+            turno_write=turnos,
+            hasher=BcryptHasher(config.BCRYPT_COST_FACTOR),
+            audit_logger=AuditLogger(AuditLogRepositorySQLite(database)),
+        ).preparar()
+    except Exception:  # noqa: BLE001 — no debe impedir abrir la app
+        log.exception("No se pudo preparar la instalación nueva.")
+        return
+    if resultado.hizo_algo:
+        log.info(
+            "Instalación nueva preparada: usuarios=%s turno=%s",
+            ", ".join(resultado.usuarios) or "—",
+            resultado.turno or "—",
+        )
 
 
 def _run_migrations(database: Database, log: logging.Logger) -> bool:

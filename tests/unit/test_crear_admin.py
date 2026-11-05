@@ -1,4 +1,4 @@
-"""Tests de ``bin.crear_admin``: instalación nueva con un solo administrador."""
+"""Tests de ``bin.crear_admin``: instalación nueva y recuperación del Super Administrador."""
 
 from __future__ import annotations
 
@@ -15,24 +15,28 @@ def _usuarios(db_path: Path) -> UsuarioRepositorySQLite:
     return UsuarioRepositorySQLite(Database(db_path))
 
 
-def test_bd_nueva_queda_con_un_solo_admin_superadmin(tmp_path: Path) -> None:
+def test_bd_nueva_queda_con_superadmin_y_administrador(tmp_path: Path) -> None:
     db_path = tmp_path / "data" / "zkteco_app.db"
     assert crear_admin.main(["--db-path", str(db_path)]) == 0
-    todos = _usuarios(db_path).list_all()
-    assert [u.username for u in todos] == ["admin"]
-    admin = todos[0]
-    rol = RolRepositorySQLite(Database(db_path)).get_by_id(admin.role_id)
-    assert rol is not None and rol.code == "SUPERADMIN"
-    assert admin.is_active
-    assert BcryptHasher(12).verify("12345678", admin.password_hash)
+    todos = {u.username: u for u in _usuarios(db_path).list_all()}
+    assert set(todos) == {"admin", "administrador"}
+    roles = RolRepositorySQLite(Database(db_path))
+    for username, codigo in (("admin", "SUPERADMIN"), ("administrador", "ADMIN")):
+        usuario = todos[username]
+        rol = roles.get_by_id(usuario.role_id)
+        assert rol is not None and rol.code == codigo
+        assert usuario.is_active
+        assert BcryptHasher(12).verify("12345678", usuario.password_hash)
 
 
-def test_no_crea_empleados_ni_datos_de_ejemplo(tmp_path: Path) -> None:
+def test_no_crea_empleados_ni_datos_de_ejemplo_solo_el_turno_operativo(tmp_path: Path) -> None:
     db_path = tmp_path / "zkteco_app.db"
     crear_admin.main(["--db-path", str(db_path)])
     with Database(db_path).transaction() as conn:
-        for tabla in ("empleados", "departamentos", "turnos", "dispositivos", "asistencias"):
+        for tabla in ("empleados", "departamentos", "dispositivos", "asistencias"):
             assert conn.execute(f"SELECT COUNT(*) FROM {tabla}").fetchone()[0] == 0
+        turnos = conn.execute("SELECT nombre FROM turnos").fetchall()
+    assert [t[0] for t in turnos] == ["Operativo"]
 
 
 def test_correrlo_otra_vez_restablece_la_clave_y_destraba(tmp_path: Path) -> None:
@@ -46,10 +50,24 @@ def test_correrlo_otra_vez_restablece_la_clave_y_destraba(tmp_path: Path) -> Non
     assert crear_admin.main(["--db-path", str(db_path)]) == 0
     admin = repo.get_by_username("admin")
     assert admin is not None
-    assert len(repo.list_all()) == 1
+    assert len(repo.list_all()) == 2
     assert BcryptHasher(12).verify("12345678", admin.password_hash)
     assert admin.failed_attempts == 0 and admin.locked_until is None
 
 
 def test_rechaza_clave_vacia(tmp_path: Path) -> None:
     assert crear_admin.main(["--db-path", str(tmp_path / "x.db"), "--clave", ""]) == 1
+
+
+def test_superadmin_con_otro_usuario_y_clave(tmp_path: Path) -> None:
+    db_path = tmp_path / "zkteco_app.db"
+    assert (
+        crear_admin.main(["--db-path", str(db_path), "--usuario", "mauricio", "--clave", "x1"]) == 0
+    )
+    repo = _usuarios(db_path)
+    mauricio, administrador = repo.get_by_username("mauricio"), repo.get_by_username(
+        "administrador"
+    )
+    assert mauricio is not None and administrador is not None
+    assert BcryptHasher(12).verify("x1", mauricio.password_hash)
+    assert BcryptHasher(12).verify("12345678", administrador.password_hash)

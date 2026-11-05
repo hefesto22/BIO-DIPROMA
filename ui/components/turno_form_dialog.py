@@ -1,32 +1,35 @@
 """Diálogo modal ``TurnoFormDialog``: crear o editar un turno.
 
-    ┌ Nuevo turno ─────────────────────────────────────────────┐
-    │ Nombre [ Administrativo                                 ] │
-    │ ┌ Horario 1 ───────────────────────────────────────────┐ │
-    │ │ (L)(M)(M)(J)(V)( S)( D)   Lun a Vie · Lun a Sáb · Todos│ │
-    │ │ Entrada [09:00]  Salida [17:00]  Descanso [60] min  7 h│ │
-    │ └───────────────────────────────────────────────────────┘ │
-    │ ┌ Horario 2 ─────────────────────────────────── Quitar ─┐ │
-    │ │ ( L)( M)( M)( J)( V)(S)( D)                            │ │
-    │ │ Entrada [09:00]  Salida [12:00]  Descanso [0] min   3 h│ │
-    │ └───────────────────────────────────────────────────────┘ │
-    │ + Agregar horario para otros días                         │
-    │ [ Lun a Vie 09:00–17:00 · Sábado 09:00–12:00 · 38 h/sem ] │
-    │                                     [Cancelar] [Guardar]  │
-    └───────────────────────────────────────────────────────────┘
+    ┌ Nuevo turno ──────────────────────────────────────────────────┐
+    │ Nombre [ Operativo                                            ] │
+    │ ┌ Horario 1 ─────────────────────────────────────────────────┐ │
+    │ │ (L)(M)(M)(J)(V)( S)( D)      Lun a Vie · Lun a Sáb · Todos  │ │
+    │ │ Entrada [07:00] Salida [17:00] Almuerzo [12:00] a [13:00] 9 h│ │
+    │ └─────────────────────────────────────────────────────────────┘ │
+    │ ┌ Horario 2 ───────────────────────────────────────── Quitar ─┐ │
+    │ │ ( L)( M)( M)( J)( V)(S)( D)                                  │ │
+    │ │ Entrada [07:00] Salida [12:00] Almuerzo [     ] a [     ] 5 h│ │
+    │ └─────────────────────────────────────────────────────────────┘ │
+    │ + Agregar horario para otros días                               │
+    │ [ Lun a Vie 07:00–17:00 · Sábado 07:00–12:00 · 50 h por semana ]│
+    │                                         [Cancelar] [Guardar]    │
+    └─────────────────────────────────────────────────────────────────┘
 
 Un día solo puede estar en un horario: los días que ya usa otro horario
 aparecen apagados. El primer horario es el principal (columnas de
 ``turnos``); los demás viajan en ``horarios_extra``.
 
+Almuerzo: de qué hora a qué hora (vacío = sin almuerzo). Se resta de la
+jornada. Un turno nuevo trae 07:00–17:00 con almuerzo de 12:00 a 13:00.
+
 Contrato: ``on_submit(payload)`` devuelve ``None`` (cierra) o un ``str``
-con el error. Las reglas (formato de horas, descanso menor que la
-jornada, nombre único, días sin repetir) las valida el servicio.
+con el error. Las reglas (formato de horas, almuerzo dentro del horario,
+nombre único, días sin repetir) las valida el servicio.
 """
 
 from __future__ import annotations
 
-from typing import Callable, List, Optional, Sequence, TypedDict
+from typing import Callable, List, Optional, Sequence, Tuple, TypedDict
 
 import customtkinter as ctk
 
@@ -37,7 +40,16 @@ from core.models.turno import (
     SABADO,
     HorarioTurno,
 )
-from core.services.validators import duracion_turno_minutos
+from core.services.errors import (
+    InvalidAlmuerzoError,
+    InvalidTimeError,
+    MissingRequiredFieldError,
+)
+from core.services.validators import (
+    duracion_turno_minutos,
+    minutos_almuerzo,
+    minutos_desde_medianoche,
+)
 from ui import formato, theme
 from ui.components.dialogo import DialogoModal
 
@@ -51,6 +63,8 @@ class TurnoFormPayload(TypedDict):
     minutos_descanso: int
     dias_semana: int
     horarios_extra: List[HorarioTurno]
+    almuerzo_inicio: Optional[str]
+    almuerzo_fin: Optional[str]
 
 
 SubmitFn = Callable[[TurnoFormPayload], Optional[str]]
@@ -64,6 +78,11 @@ _ATAJOS = (
 # Más de cuatro horarios distintos en una semana ya no es "un turno".
 _MAX_HORARIOS = 4
 
+# Horario que trae un turno nuevo: de 7 a 5 con almuerzo de 12 a 1.
+ENTRADA_POR_DEFECTO = "07:00"
+SALIDA_POR_DEFECTO = "17:00"
+ALMUERZO_POR_DEFECTO = ("12:00", "13:00")
+
 
 class TurnoFormDialog(DialogoModal):
     """Diálogo modal para crear o editar un turno."""
@@ -74,11 +93,13 @@ class TurnoFormDialog(DialogoModal):
         title: str,
         on_submit: SubmitFn,
         initial_nombre: str = "",
-        initial_hora_entrada: str = "08:00",
-        initial_hora_salida: str = "17:00",
+        initial_hora_entrada: str = ENTRADA_POR_DEFECTO,
+        initial_hora_salida: str = SALIDA_POR_DEFECTO,
         initial_minutos_descanso: int = 60,
         initial_dias_semana: int = DIAS_LABORALES,
         initial_horarios_extra: Sequence[HorarioTurno] = (),
+        initial_almuerzo_inicio: Optional[str] = ALMUERZO_POR_DEFECTO[0],
+        initial_almuerzo_fin: Optional[str] = ALMUERZO_POR_DEFECTO[1],
     ) -> None:
         es_nuevo = not initial_nombre
         super().__init__(
@@ -88,7 +109,7 @@ class TurnoFormDialog(DialogoModal):
                 "Horario contra el que se comparan las marcas. Si algún día se trabaja "
                 "con otro horario (por ejemplo el sábado medio día), agréguelo abajo."
             ),
-            ancho=620,
+            ancho=680,
         )
         self._on_submit = on_submit
         self._bloques: List[_BloqueHorario] = []
@@ -128,7 +149,7 @@ class TurnoFormDialog(DialogoModal):
             corner_radius=8,
             anchor="w",
             justify="left",
-            wraplength=560,
+            wraplength=620,
             font=theme.fuente(theme.TAM_PEQUENO),
             padx=12,
             pady=8,
@@ -140,6 +161,8 @@ class TurnoFormDialog(DialogoModal):
             hora_entrada=initial_hora_entrada,
             hora_salida=initial_hora_salida,
             minutos_descanso=initial_minutos_descanso,
+            almuerzo_inicio=initial_almuerzo_inicio,
+            almuerzo_fin=initial_almuerzo_fin,
         )
         for horario in (principal, *initial_horarios_extra):
             self._crear_bloque(horario)
@@ -194,11 +217,11 @@ class TurnoFormDialog(DialogoModal):
             dia = DOMINGO
         else:
             dia = 1 << (libres.bit_length() - 1)  # el primer día libre de la semana
-        entrada, salida, _desc = self._bloques[0].textos()
+        entrada, salida, _ini, _fin = self._bloques[0].textos()
         bloque = self._crear_bloque(
             HorarioTurno(
                 dias_semana=dia,
-                hora_entrada=entrada or "08:00",
+                hora_entrada=entrada or ENTRADA_POR_DEFECTO,
                 hora_salida="12:00" if entrada and entrada < "12:00" else (salida or "12:00"),
                 minutos_descanso=0,
             )
@@ -237,26 +260,32 @@ class TurnoFormDialog(DialogoModal):
     def _actualizar_resumen(self) -> None:
         partes: List[str] = []
         minutos_semana = 0
+        varios = len(self._bloques) > 1
         for i, bloque in enumerate(self._bloques, start=1):
             nombre = f"El horario {i}" if len(self._bloques) > 1 else "El horario"
-            entrada, salida, descanso_txt = bloque.textos()
+            entrada, salida, alm_inicio, alm_fin = bloque.textos()
             bloque.mostrar_jornada("")
             if not bloque.dias:
                 self._mostrar_resumen(f"{nombre} no tiene días: elija al menos uno.", error=True)
                 return
             try:
+                minutos_desde_medianoche(entrada)
+                minutos_desde_medianoche(salida)
                 total = duracion_turno_minutos(entrada, salida)
-                descanso = int(descanso_txt or "0")
-            except (ValueError, TypeError):
+                descanso = minutos_almuerzo(entrada, salida, alm_inicio, alm_fin)
+            except (ValueError, TypeError, InvalidTimeError, MissingRequiredFieldError):
                 self._mostrar_resumen(
-                    "Escriba las horas como HH:MM (24 h), por ejemplo 08:00 y 17:00.",
+                    "Escriba las horas como HH:MM (24 h), por ejemplo 07:00 y 17:00.",
                     error=False,
                 )
+                return
+            except InvalidAlmuerzoError as exc:
+                self._mostrar_resumen(f"{nombre}: {exc}" if varios else str(exc), error=True)
                 return
             efectiva = total - descanso
             if efectiva <= 0:
                 self._mostrar_resumen(
-                    f"{nombre}: el descanso no puede ser igual o mayor que la jornada.", error=True
+                    f"{nombre}: el almuerzo no puede durar toda la jornada.", error=True
                 )
                 return
             bloque.mostrar_jornada(formato.duracion(efectiva))
@@ -264,6 +293,8 @@ class TurnoFormDialog(DialogoModal):
             texto = f"{formato.dias_texto(bloque.dias)} {entrada}–{salida}"
             if salida <= entrada:
                 texto += " (cruza la medianoche)"
+            if descanso:
+                texto += f", almuerzo {alm_inicio}–{alm_fin}"
             partes.append(texto)
         partes.append(f"{formato.duracion(minutos_semana)} por semana")
         self._mostrar_resumen("  ·  ".join(partes), error=False)
@@ -290,20 +321,24 @@ class TurnoFormDialog(DialogoModal):
         varios = len(self._bloques) > 1
         for i, bloque in enumerate(self._bloques, start=1):
             nombre = f"horario {i}" if varios else "horario"
-            entrada, salida, descanso_txt = bloque.textos()
-            try:
-                descanso = int(descanso_txt or "0")
-            except ValueError:
-                return f"El descanso del {nombre} debe ser un número entero de minutos."
-            if descanso < 0:
-                return f"El descanso del {nombre} no puede ser negativo."
+            entrada, salida, alm_inicio, alm_fin = bloque.textos()
             if not bloque.dias:
                 return (
                     f"Seleccione al menos un día en el {nombre}."
                     if varios
                     else "Seleccione al menos un día de la semana."
                 )
-            horarios.append(HorarioTurno(bloque.dias, entrada, salida, descanso))
+            # Los minutos de descanso los calcula el servicio desde el almuerzo.
+            horarios.append(
+                HorarioTurno(
+                    bloque.dias,
+                    entrada,
+                    salida,
+                    0,
+                    almuerzo_inicio=alm_inicio or None,
+                    almuerzo_fin=alm_fin or None,
+                )
+            )
         principal, extras = horarios[0], horarios[1:]
         return TurnoFormPayload(
             nombre=str(self._entry_nombre.get()).strip(),
@@ -312,11 +347,13 @@ class TurnoFormDialog(DialogoModal):
             minutos_descanso=principal.minutos_descanso,
             dias_semana=principal.dias_semana,
             horarios_extra=extras,
+            almuerzo_inicio=principal.almuerzo_inicio,
+            almuerzo_fin=principal.almuerzo_fin,
         )
 
 
 class _BloqueHorario(ctk.CTkFrame):
-    """Una tarjeta "días + entrada/salida/descanso" dentro del formulario."""
+    """Una tarjeta "días + entrada/salida/almuerzo" dentro del formulario."""
 
     def __init__(
         self,
@@ -390,28 +427,37 @@ class _BloqueHorario(ctk.CTkFrame):
 
         horas = ctk.CTkFrame(self, fg_color="transparent")
         horas.grid(row=2, column=0, sticky="ew", padx=12, pady=(8, 10))
-        horas.grid_columnconfigure(7, weight=1)
+        horas.grid_columnconfigure(8, weight=1)
         self._entradas: List[ctk.CTkEntry] = []
+        alm_inicio, alm_fin = almuerzo_inicial(horario)
         campos = (
-            ("Entrada", horario.hora_entrada, 70),
-            ("Salida", horario.hora_salida, 70),
-            ("Descanso", str(horario.minutos_descanso), 52),
+            ("Entrada", horario.hora_entrada),
+            ("Salida", horario.hora_salida),
+            ("Almuerzo", alm_inicio),
+            ("a", alm_fin),
         )
-        for k, (etiqueta, valor, ancho) in enumerate(campos):
-            ctk.CTkLabel(horas, text=etiqueta, font=theme.fuente(theme.TAM_PEQUENO)).grid(
-                row=0, column=k * 2, padx=(0 if k == 0 else 14, 6)
+        for k, (etiqueta, valor) in enumerate(campos):
+            ctk.CTkLabel(
+                horas,
+                text=etiqueta,
+                font=theme.fuente(theme.TAM_PEQUENO),
+                text_color=theme.TEXTO_SUAVE if etiqueta == "a" else theme.TEXTO,
+            ).grid(row=0, column=k * 2, padx=(0 if k == 0 else (6 if etiqueta == "a" else 14), 6))
+            entry = ctk.CTkEntry(
+                horas,
+                width=64,
+                height=32,
+                justify="center",
+                placeholder_text="--:--" if k >= 2 else "",
             )
-            entry = ctk.CTkEntry(horas, width=ancho, height=32, justify="center")
-            entry.insert(0, valor)
+            if valor:
+                entry.insert(0, valor)
             entry.grid(row=0, column=k * 2 + 1)
             entry.bind("<KeyRelease>", lambda _e: al_cambiar())
             # Al entrar al campo se selecciona todo: escribir reemplaza la hora.
             entry.bind("<FocusIn>", lambda _e, w=entry: w.after(1, _seleccionar_todo, w))
             entry.bind("<Return>", lambda _e: al_guardar())
             self._entradas.append(entry)
-        ctk.CTkLabel(
-            horas, text="min", font=theme.fuente(theme.TAM_PEQUENO), text_color=theme.TEXTO_SUAVE
-        ).grid(row=0, column=6, padx=(6, 0))
         self._jornada = ctk.CTkLabel(
             horas,
             text="",
@@ -419,15 +465,15 @@ class _BloqueHorario(ctk.CTkFrame):
             text_color=theme.TEXTO_SUAVE,
             anchor="e",
         )
-        self._jornada.grid(row=0, column=7, sticky="e")
+        self._jornada.grid(row=0, column=8, sticky="e", padx=(10, 0))
 
     def set_titulo(self, texto: str) -> None:
         self._titulo.configure(text=texto)
 
-    def textos(self) -> tuple[str, str, str]:
-        """``(entrada, salida, descanso)`` tal como están escritos."""
-        e, s, d = (str(w.get()).strip() for w in self._entradas)
-        return e, s, d
+    def textos(self) -> Tuple[str, str, str, str]:
+        """``(entrada, salida, inicio_almuerzo, fin_almuerzo)`` tal como están escritos."""
+        e, s, i, f = (str(w.get()).strip() for w in self._entradas)
+        return e, s, i, f
 
     def mostrar_jornada(self, texto: str) -> None:
         self._jornada.configure(text=f"{texto} por día" if texto else "")
@@ -452,6 +498,37 @@ class _BloqueHorario(ctk.CTkFrame):
                 hover_color=theme.PRIMARIO_HOVER if activo else theme.SECUNDARIO_HOVER,
                 text_color=theme.TEXTO_SOBRE_PRIMARIO if activo else theme.TEXTO_SUAVE,
             )
+
+
+def almuerzo_inicial(horario: HorarioTurno) -> Tuple[str, str]:
+    """Horas de almuerzo que muestra el formulario para un horario.
+
+    Las guardadas si las tiene. Si es un turno viejo que solo tenía
+    minutos de descanso, sugiere una hora para no perderlo al guardar:
+    desde las 12:00 si cabe en el horario, si no a mitad de la jornada.
+    Sin almuerzo: ``("", "")``.
+    """
+    if horario.almuerzo_inicio and horario.almuerzo_fin:
+        return horario.almuerzo_inicio, horario.almuerzo_fin
+    minutos = horario.minutos_descanso
+    try:
+        entrada = minutos_desde_medianoche(horario.hora_entrada)
+        duracion = duracion_turno_minutos(horario.hora_entrada, horario.hora_salida)
+    except (ValueError, TypeError):
+        return "", ""
+    if minutos <= 0 or minutos >= duracion:
+        return "", ""
+    mediodia = 12 * 60
+    if entrada <= mediodia and mediodia + minutos <= entrada + duracion:
+        inicio = mediodia
+    else:
+        inicio = entrada + (duracion - minutos) // 2 // 30 * 30
+    return _hhmm(inicio), _hhmm(inicio + minutos)
+
+
+def _hhmm(minutos: int) -> str:
+    minutos %= 24 * 60
+    return f"{minutos // 60:02d}:{minutos % 60:02d}"
 
 
 def _seleccionar_todo(entry: ctk.CTkEntry) -> None:

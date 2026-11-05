@@ -19,6 +19,11 @@ tolerancia solo decide si el día se marca como "Tarde", no los minutos):
     hora de salida del turno ("salida asumida"): ese día no suma extra ni
     salida temprana.
 
+    Almuerzo: si el horario tiene hora de almuerzo (12:00–13:00), esa
+    hora no cuenta como jornada (programado) ni como tiempo trabajado
+    (solo la parte que cae dentro de lo que estuvo). El atraso, la salida
+    temprana y el extra no cambian: se miden contra la entrada y la salida.
+
 Los minutos se truncan igual que en la consolidación (89 segundos = 1 min).
 """
 
@@ -55,6 +60,8 @@ class HorarioDia:
     entrada: str
     salida: str
     cruza_medianoche: bool = False
+    almuerzo_inicio: Optional[str] = None
+    almuerzo_fin: Optional[str] = None
 
     @property
     def texto(self) -> str:
@@ -67,6 +74,25 @@ class HorarioDia:
         if self.cruza_medianoche or fin <= inicio:
             fin += _DIA_SEG
         return (fin - inicio) // 60
+
+    def almuerzo(self) -> Optional[Tuple[int, int]]:
+        """``(inicio, fin)`` del almuerzo en segundos, en la misma escala que
+        la jornada (pasada la medianoche se suma un día). ``None`` si no hay."""
+        if not self.almuerzo_inicio or not self.almuerzo_fin:
+            return None
+        entrada = _segundos(self.entrada)
+        inicio, fin = _segundos(self.almuerzo_inicio), _segundos(self.almuerzo_fin)
+        if inicio < entrada:
+            inicio += _DIA_SEG
+        if fin <= inicio:
+            fin += _DIA_SEG
+        return inicio, fin
+
+    @property
+    def minutos_netos(self) -> int:
+        """Jornada sin el almuerzo (lo que se espera que trabaje)."""
+        tramo = self.almuerzo()
+        return self.minutos - ((tramo[1] - tramo[0]) // 60 if tramo else 0)
 
 
 @dataclass(frozen=True)
@@ -176,7 +202,7 @@ def tiempo_del_dia(
     if horario is None or a.estado in JUSTIFICADOS:
         return TiempoDia()
     if a.estado == E.AUSENTE.value:
-        return TiempoDia(programado=horario.minutos, trabajado=0)
+        return TiempoDia(programado=horario.minutos_netos, trabajado=0)
     if a.estado not in TRABAJADOS:
         return TiempoDia()
 
@@ -191,8 +217,8 @@ def tiempo_del_dia(
         if salida < entrada:
             salida += _DIA_SEG
         return TiempoDia(
-            programado=horario.minutos,
-            trabajado=(salida - entrada) // 60,
+            programado=horario.minutos_netos,
+            trabajado=(salida - entrada - _cruce_con_almuerzo(horario, entrada, salida)) // 60,
             tarde=a.minutos_tarde,
             salida_temprana=a.minutos_salida_temprana,
             extra=max(0, salida - salida_oficial) // 60,
@@ -239,6 +265,18 @@ def sumar_dias(dias: Iterable[Tuple[TiempoDia, Optional[str]]]) -> TiempoEmplead
         dias_descanso_trabajados=t["dias_descanso"],
         entrada_promedio=promedio,
     )
+
+
+def _cruce_con_almuerzo(horario: HorarioDia, entrada: int, salida: int) -> int:
+    """Segundos del almuerzo que caen entre la entrada y la salida reales."""
+    tramo = horario.almuerzo()
+    if tramo is None:
+        return 0
+    inicio, fin = tramo
+    # Una entrada de madrugada en un turno nocturno va en la escala del día siguiente.
+    if entrada < _segundos(horario.entrada) - 12 * 3600:
+        entrada, salida = entrada + _DIA_SEG, salida + _DIA_SEG
+    return max(0, min(salida, fin) - max(entrada, inicio))
 
 
 def texto_duracion(minutos: int, con_signo: bool = False) -> str:

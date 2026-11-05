@@ -15,7 +15,7 @@ y ``test_main_controller``.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 
@@ -75,7 +75,10 @@ class _StubTurnoService:
         dias_semana: int,
         actor_user_id: int,
         horarios_extra: object = None,
+        almuerzo_inicio: Optional[str] = None,
+        almuerzo_fin: Optional[str] = None,
     ) -> Turno:
+        almuerzo = {"almuerzo": (almuerzo_inicio, almuerzo_fin)} if almuerzo_inicio else {}
         self._record(
             "create_turno",
             nombre=nombre,
@@ -84,6 +87,7 @@ class _StubTurnoService:
             minutos_descanso=minutos_descanso,
             dias_semana=dias_semana,
             actor_user_id=actor_user_id,
+            **almuerzo,
         )
         creado = _turno(turno_id=self._next_id, nombre=nombre)
         self._next_id += 1
@@ -99,6 +103,8 @@ class _StubTurnoService:
         dias_semana: int,
         actor_user_id: int,
         horarios_extra: object = None,
+        almuerzo_inicio: Optional[str] = None,
+        almuerzo_fin: Optional[str] = None,
     ) -> None:
         self._record(
             "update_turno",
@@ -161,6 +167,20 @@ def test_get_turno_delega() -> None:
     turno = ctrl.get_turno(7)
     assert turno.id == 7
     assert stub.calls == [("get_turno", (7,), {})]
+
+
+def test_create_turno_pasa_la_hora_de_almuerzo() -> None:
+    ctrl, stub = _controller({perms.MANAGE_EMPLOYEES}, user_id=7)
+    ctrl.create_turno(
+        nombre="Operativo",
+        hora_entrada="07:00",
+        hora_salida="17:00",
+        minutos_descanso=0,
+        dias_semana=DIAS_LABORALES,
+        almuerzo_inicio="12:00",
+        almuerzo_fin="13:00",
+    )
+    assert stub.calls[0][2]["almuerzo"] == ("12:00", "13:00")
 
 
 def test_create_turno_pasa_user_id_como_actor() -> None:

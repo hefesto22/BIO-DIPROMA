@@ -97,6 +97,8 @@ class TurnosController:
         minutos_descanso: int,
         dias_semana: int,
         horarios_extra: Sequence[HorarioTurno] = (),
+        almuerzo_inicio: Optional[str] = None,
+        almuerzo_fin: Optional[str] = None,
     ) -> Turno:
         """Crea un turno con validaciones del service.
 
@@ -112,6 +114,8 @@ class TurnosController:
             dias_semana=dias_semana,
             actor_user_id=self.session.user_id,
             horarios_extra=list(horarios_extra),
+            almuerzo_inicio=almuerzo_inicio,
+            almuerzo_fin=almuerzo_fin,
         )
 
     @require_permission(perms.MANAGE_EMPLOYEES)
@@ -125,6 +129,8 @@ class TurnosController:
         dias_semana: int,
         horarios_extra: Sequence[HorarioTurno] = (),
         quitar_conflictos: bool = False,
+        almuerzo_inicio: Optional[str] = None,
+        almuerzo_fin: Optional[str] = None,
     ) -> int:
         """Actualiza todos los campos editables de un turno.
 
@@ -165,6 +171,8 @@ class TurnosController:
             dias_semana=dias_semana,
             actor_user_id=self.session.user_id,
             horarios_extra=list(horarios_extra),
+            almuerzo_inicio=almuerzo_inicio,
+            almuerzo_fin=almuerzo_fin,
         )
         if not conflictos or self._empleado is None:
             return 0

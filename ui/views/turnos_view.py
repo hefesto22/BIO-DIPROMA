@@ -33,6 +33,7 @@ from core.models.turno import Turno
 from core.services.errors import (
     DuplicateTurnoNombreError,
     HorariosSolapadosError,
+    InvalidAlmuerzoError,
     InvalidBitmaskError,
     InvalidDescansoError,
     InvalidTimeError,
@@ -56,6 +57,7 @@ _ERRORES_TURNO = (
     InvalidTimeError,
     InvalidBitmaskError,
     InvalidDescansoError,
+    InvalidAlmuerzoError,
     DuplicateTurnoNombreError,
     HorariosSolapadosError,
     TurnoNotFoundError,
@@ -349,11 +351,8 @@ class TurnosView(ctk.CTkFrame):
         lineas = [("Días", formato.dias_texto(t.dias_totales))]
         for h in bloques:
             jornada = formato.horas_efectivas(h.hora_entrada, h.hora_salida, h.minutos_descanso)
-            descanso = (
-                f" (descanso {formato.duracion(h.minutos_descanso)})" if h.minutos_descanso else ""
-            )
             etiqueta = "Jornada" if len(bloques) == 1 else formato.dias_corto(h.dias_semana)
-            lineas.append((etiqueta, f"{formato.duracion(jornada)}{descanso}"))
+            lineas.append((etiqueta, f"{formato.duracion(jornada)}{formato.almuerzo_texto(h)}"))
         lineas += [
             ("Por semana", formato.duracion(formato.minutos_por_semana(bloques))),
             ("Gracia al entrar", formato.duracion(t.minutos_tolerancia_entrada)),
@@ -430,6 +429,8 @@ class TurnosView(ctk.CTkFrame):
             initial_minutos_descanso=turno.minutos_descanso,
             initial_dias_semana=turno.dias_semana,
             initial_horarios_extra=turno.horarios_extra,
+            initial_almuerzo_inicio=turno.almuerzo_inicio,
+            initial_almuerzo_fin=turno.almuerzo_fin,
         )
         self._conflictos_resueltos = 0
         self.wait_window(dialog)

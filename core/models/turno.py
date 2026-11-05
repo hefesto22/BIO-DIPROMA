@@ -100,6 +100,10 @@ class HorarioTurno:
     Los días de todos los horarios de un turno son disjuntos: cada día de
     la semana tiene a lo sumo un horario. Las tolerancias de entrada y
     salida son las del turno.
+
+    ``almuerzo_inicio`` / ``almuerzo_fin`` ("HH:MM") marcan la hora de
+    almuerzo dentro del horario (``None`` = sin almuerzo). Cuando están,
+    ``minutos_descanso`` es su duración (lo calcula ``TurnoService``).
     """
 
     dias_semana: int
@@ -107,6 +111,15 @@ class HorarioTurno:
     hora_salida: str
     minutos_descanso: int = 0
     cruza_medianoche: bool = False
+    almuerzo_inicio: Optional[str] = None
+    almuerzo_fin: Optional[str] = None
+
+    @property
+    def almuerzo_texto(self) -> Optional[str]:
+        """``"12:00–13:00"`` o ``None`` si el horario no tiene hora de almuerzo."""
+        if self.almuerzo_inicio and self.almuerzo_fin:
+            return f"{self.almuerzo_inicio}–{self.almuerzo_fin}"
+        return None
 
 
 @dataclass
@@ -127,7 +140,8 @@ class Turno:
         hora_salida: Formato "HH:MM" 24h. Si es menor que ``hora_entrada``
             el turno cruza medianoche (vigilancia nocturna).
         minutos_descanso: Minutos de almuerzo/pausa internos al bloque. Se
-            restan al calcular horas trabajadas. Default 0.
+            restan al calcular horas trabajadas. Default 0. Con hora de
+            almuerzo es ``almuerzo_fin − almuerzo_inicio``.
         dias_semana: Bitmask 7-bit de días aplicables (ver constantes).
             Default: lunes a viernes (``DIAS_LABORALES``).
         cruza_medianoche: Flag derivado de ``hora_salida < hora_entrada``.
@@ -148,6 +162,8 @@ class Turno:
             ``HorarioTurno``). Vacío en un turno de horario único. Las
             horas de arriba son el horario principal y aplican solo a
             ``dias_semana``.
+        almuerzo_inicio / almuerzo_fin: Hora de almuerzo del horario
+            principal ("HH:MM"), ``None`` si no tiene.
     """
 
     id: Optional[int]
@@ -161,6 +177,8 @@ class Turno:
     minutos_tolerancia_salida: int = 0
     is_active: bool = True
     horarios_extra: List[HorarioTurno] = field(default_factory=list)
+    almuerzo_inicio: Optional[str] = None
+    almuerzo_fin: Optional[str] = None
 
     @property
     def dias_totales(self) -> int:
@@ -182,6 +200,8 @@ class Turno:
             hora_salida=self.hora_salida,
             minutos_descanso=self.minutos_descanso,
             cruza_medianoche=self.cruza_medianoche,
+            almuerzo_inicio=self.almuerzo_inicio,
+            almuerzo_fin=self.almuerzo_fin,
         )
         return [principal, *self.horarios_extra]
 
@@ -204,6 +224,8 @@ class Turno:
                     minutos_descanso=horario.minutos_descanso,
                     dias_semana=horario.dias_semana,
                     cruza_medianoche=horario.cruza_medianoche,
+                    almuerzo_inicio=horario.almuerzo_inicio,
+                    almuerzo_fin=horario.almuerzo_fin,
                     horarios_extra=[],
                 )
         return None

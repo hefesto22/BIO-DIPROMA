@@ -179,6 +179,15 @@ def duracion(minutos: int) -> str:
     return f"{resto} min"
 
 
+def almuerzo_texto(horario: HorarioTurno) -> str:
+    """Sufijo para la jornada: ``" (almuerzo 12:00–13:00)"``, ``" (descanso 1 h)"`` o ``""``."""
+    if horario.almuerzo_texto:
+        return f" (almuerzo {horario.almuerzo_texto})"
+    if horario.minutos_descanso:
+        return f" (descanso {duracion(horario.minutos_descanso)})"
+    return ""
+
+
 def horas_efectivas(hora_entrada: str, hora_salida: str, minutos_descanso: int) -> int:
     """Minutos trabajados por día: duración del bloque menos el descanso."""
     return max(0, duracion_turno_minutos(hora_entrada, hora_salida) - minutos_descanso)

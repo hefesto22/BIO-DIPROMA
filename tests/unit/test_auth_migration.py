@@ -104,22 +104,17 @@ def test_superadmin_tiene_todos_los_permisos(db_con_auth: Database) -> None:
     assert permisos == set(perms.ALL_PERMISSIONS)
 
 
-def test_admin_gestiona_usuarios_y_empleados_pero_no_roles(
-    db_con_auth: Database,
-) -> None:
-    """Sub-2.7a actualizó el seed: ADMIN ahora tiene manage_users
-    (puede crear usuarios) pero NO manage_roles (no puede tocar la
-    matriz de permisos de los roles)."""
+def test_admin_tiene_acceso_total(db_con_auth: Database) -> None:
+    """Migración 014: ADMIN tiene los mismos permisos que SUPERADMIN
+    (antes no tenía manage_roles). La cuenta del SUPERADMIN sigue siendo
+    única y un ADMIN no puede modificarla (eso lo cuida el servicio)."""
     conn = db_con_auth.connect()
     try:
         row = _fetch_role_by_code(conn, perms.ROLE_ADMIN)
     finally:
         conn.close()
     permisos = set(json.loads(row["permissions_json"]))
-    assert perms.MANAGE_USERS in permisos
-    assert perms.MANAGE_ROLES not in permisos
-    assert perms.MANAGE_EMPLOYEES in permisos
-    assert perms.EXPORT_REPORTS in permisos
+    assert permisos == set(perms.ALL_PERMISSIONS)
 
 
 def test_reportes_solo_tiene_permisos_de_exportar(db_con_auth: Database) -> None:

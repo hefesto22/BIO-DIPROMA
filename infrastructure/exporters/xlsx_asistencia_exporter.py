@@ -133,7 +133,8 @@ _SIGNIFICADO: Tuple[Tuple[str, str], ...] = (
     (
         "% Cumplimiento de jornada",
         "Horas trabajadas (entrada a salida) ÷ horas que le tocaban, en los días con las "
-        "dos marcas y en las faltas.",
+        "dos marcas y en las faltas. La hora de almuerzo del turno no cuenta en ninguna "
+        "de las dos.",
     ),
     ("Entrada promedio", "Hora promedio a la que marcó la entrada en los días con turno."),
 )

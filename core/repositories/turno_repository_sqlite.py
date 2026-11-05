@@ -22,6 +22,8 @@ def _row_to_horario(row: sqlite3.Row) -> HorarioTurno:
         hora_salida=row["hora_salida"],
         minutos_descanso=row["minutos_descanso"],
         cruza_medianoche=bool(row["cruza_medianoche"]),
+        almuerzo_inicio=row["almuerzo_inicio"],
+        almuerzo_fin=row["almuerzo_fin"],
     )
 
 
@@ -39,7 +41,7 @@ def _cargar_horarios(
     marcadores = ", ".join("?" for _ in ids)
     rows = conn.execute(
         "SELECT turno_id, dias_semana, hora_entrada, hora_salida, minutos_descanso, "
-        "cruza_medianoche FROM turno_horarios "
+        "cruza_medianoche, almuerzo_inicio, almuerzo_fin FROM turno_horarios "
         f"WHERE turno_id IN ({marcadores}) ORDER BY turno_id, dias_semana DESC, id",
         ids,
     ).fetchall()
@@ -67,7 +69,7 @@ def _guardar_horarios(
         conn.execute(
             "INSERT INTO turno_horarios "
             "(turno_id, dias_semana, hora_entrada, hora_salida, minutos_descanso, "
-            " cruza_medianoche) VALUES (?, ?, ?, ?, ?, ?)",
+            " cruza_medianoche, almuerzo_inicio, almuerzo_fin) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 turno_id,
                 h.dias_semana,
@@ -75,6 +77,8 @@ def _guardar_horarios(
                 h.hora_salida,
                 h.minutos_descanso,
                 1 if h.cruza_medianoche else 0,
+                h.almuerzo_inicio,
+                h.almuerzo_fin,
             ),
         )
 
@@ -90,6 +94,8 @@ def _row_to_turno(row: sqlite3.Row) -> Turno:
         dias_semana=row["dias_semana"],
         cruza_medianoche=bool(row["cruza_medianoche"]),
         is_active=bool(row["is_active"]),
+        almuerzo_inicio=row["almuerzo_inicio"],
+        almuerzo_fin=row["almuerzo_fin"],
     )
 
 
@@ -98,7 +104,7 @@ class TurnoRepositorySQLite(ITurnoReadRepository, ITurnoWriteRepository):
 
     _SELECT_COLS = (
         "id, nombre, hora_entrada, hora_salida, minutos_descanso, "
-        "dias_semana, cruza_medianoche, is_active"
+        "dias_semana, cruza_medianoche, is_active, almuerzo_inicio, almuerzo_fin"
     )
 
     def __init__(self, database: Database) -> None:
@@ -148,8 +154,8 @@ class TurnoRepositorySQLite(ITurnoReadRepository, ITurnoWriteRepository):
             cursor = conn.execute(
                 "INSERT INTO turnos "
                 "(nombre, hora_entrada, hora_salida, minutos_descanso, "
-                " dias_semana, cruza_medianoche, is_active) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                " dias_semana, cruza_medianoche, is_active, almuerzo_inicio, almuerzo_fin) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     turno.nombre,
                     turno.hora_entrada,
@@ -158,6 +164,8 @@ class TurnoRepositorySQLite(ITurnoReadRepository, ITurnoWriteRepository):
                     turno.dias_semana,
                     1 if turno.cruza_medianoche else 0,
                     1 if turno.is_active else 0,
+                    turno.almuerzo_inicio,
+                    turno.almuerzo_fin,
                 ),
             )
             new_id = cursor.lastrowid
@@ -173,7 +181,8 @@ class TurnoRepositorySQLite(ITurnoReadRepository, ITurnoWriteRepository):
                 "UPDATE turnos SET "
                 "nombre = ?, hora_entrada = ?, hora_salida = ?, "
                 "minutos_descanso = ?, dias_semana = ?, "
-                "cruza_medianoche = ?, is_active = ? "
+                "cruza_medianoche = ?, is_active = ?, "
+                "almuerzo_inicio = ?, almuerzo_fin = ? "
                 "WHERE id = ?",
                 (
                     turno.nombre,
@@ -183,6 +192,8 @@ class TurnoRepositorySQLite(ITurnoReadRepository, ITurnoWriteRepository):
                     turno.dias_semana,
                     1 if turno.cruza_medianoche else 0,
                     1 if turno.is_active else 0,
+                    turno.almuerzo_inicio,
+                    turno.almuerzo_fin,
                     turno.id,
                 ),
             )

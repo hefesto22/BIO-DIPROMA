@@ -42,11 +42,8 @@ def test_get_by_code_admin(repo: RolRepositorySQLite) -> None:
     rol = repo.get_by_code(perms.ROLE_ADMIN)
     assert rol is not None
     assert rol.id == 2
-    # Sub-2.7a: ADMIN ahora tiene manage_users (gestiona usuarios) pero
-    # NO manage_roles (no puede tocar la matriz de roles).
-    assert perms.MANAGE_USERS in rol.permissions
-    assert perms.MANAGE_ROLES not in rol.permissions
-    assert perms.MANAGE_EMPLOYEES in rol.permissions
+    # Migración 014: ADMIN tiene acceso total (los mismos permisos que SUPERADMIN).
+    assert rol.permissions == perms.ALL_PERMISSIONS
 
 
 def test_get_by_code_case_sensitive(repo: RolRepositorySQLite) -> None:

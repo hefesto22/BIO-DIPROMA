@@ -22,8 +22,10 @@ from __future__ import annotations
 
 import re
 from datetime import date, datetime
+from typing import Optional
 
 from core.services.errors import (
+    InvalidAlmuerzoError,
     InvalidBitmaskError,
     InvalidDateError,
     InvalidDNIError,
@@ -182,6 +184,64 @@ def validate_minutos_descanso(valor: int) -> None:
     """
     if valor < 0:
         raise ValueError(f"Los minutos de descanso no pueden ser negativos (recibido: {valor}).")
+
+
+# ── Hora de almuerzo ──────────────────────────────────────────────────────────
+
+
+def minutos_almuerzo(
+    hora_entrada: str,
+    hora_salida: str,
+    almuerzo_inicio: Optional[str],
+    almuerzo_fin: Optional[str],
+) -> int:
+    """Valida la hora de almuerzo de un horario y devuelve su duración.
+
+    El almuerzo tiene que estar completo (inicio y fin), terminar después
+    de empezar y quedar dentro del horario (de la entrada a la salida,
+    también en turnos que cruzan la medianoche).
+
+    Pre-condición: ``hora_entrada`` y ``hora_salida`` ya validadas.
+
+    Args:
+        hora_entrada / hora_salida: Horario del bloque ("HH:MM").
+        almuerzo_inicio / almuerzo_fin: "HH:MM". Vacíos o ``None`` los dos
+            = sin almuerzo (devuelve 0).
+
+    Returns:
+        Minutos de almuerzo (0 si no tiene).
+
+    Raises:
+        InvalidAlmuerzoError: Falta una de las dos horas, termina antes de
+            empezar o queda fuera del horario.
+        InvalidTimeError: Alguna hora no es ``HH:MM``.
+    """
+    inicio = (almuerzo_inicio or "").strip()
+    fin = (almuerzo_fin or "").strip()
+    if not inicio and not fin:
+        return 0
+    if not inicio or not fin:
+        raise InvalidAlmuerzoError(
+            "Escriba la hora de inicio y la de fin del almuerzo (por ejemplo 12:00 y 13:00), "
+            "o deje las dos vacías si el horario no tiene almuerzo."
+        )
+    validate_hora_hhmm(inicio, "inicio del almuerzo")
+    validate_hora_hhmm(fin, "fin del almuerzo")
+
+    entrada = minutos_desde_medianoche(hora_entrada)
+    duracion = duracion_turno_minutos(hora_entrada, hora_salida)
+    desde = (minutos_desde_medianoche(inicio) - entrada) % (24 * 60)
+    hasta = (minutos_desde_medianoche(fin) - entrada) % (24 * 60)
+    if desde >= duracion or hasta > duracion or hasta == 0:
+        raise InvalidAlmuerzoError(
+            f"El almuerzo ({inicio}–{fin}) debe quedar dentro del horario "
+            f"({hora_entrada}–{hora_salida})."
+        )
+    if hasta <= desde:
+        raise InvalidAlmuerzoError(
+            f"El almuerzo debe terminar después de empezar ({inicio}–{fin})."
+        )
+    return hasta - desde
 
 
 # ── Texto libre (nombres de catálogo) ─────────────────────────────────────────

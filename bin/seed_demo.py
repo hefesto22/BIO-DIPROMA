@@ -680,6 +680,9 @@ def _crear_turnos(s: _Servicios, actor_id: int) -> Dict[str, _TurnoCreado]:
             horarios_extra=(
                 [HorarioTurno(SABADO, spec.sabado[0], spec.sabado[1])] if spec.sabado else []
             ),
+            # El descanso es el almuerzo, desde las 12:00.
+            almuerzo_inicio="12:00" if spec.descanso else None,
+            almuerzo_fin=_hhmm(12 * 60 + spec.descanso) if spec.descanso else None,
         )
         assert turno.id is not None
         creados[spec.clave] = _TurnoCreado(turno.id, spec)
@@ -1001,6 +1004,10 @@ def _contar(database: Database, tabla: str) -> int:
 def _hora(hhmm: str) -> time:
     h, m = hhmm.split(":")
     return time(int(h), int(m))
+
+
+def _hhmm(minutos: int) -> str:
+    return f"{minutos // 60:02d}:{minutos % 60:02d}"
 
 
 def _sin_tildes(texto: str) -> str:

@@ -321,6 +321,13 @@ class InvalidDescansoError(TurnoError):
         self.duracion_minutos = duracion_minutos
 
 
+class InvalidAlmuerzoError(TurnoError):
+    """La hora de almuerzo está incompleta, al revés o fuera del horario."""
+
+    def __init__(self, mensaje: str) -> None:
+        super().__init__(mensaje)
+
+
 class HorariosSolapadosError(TurnoError):
     """Un mismo día de la semana aparece en dos horarios del turno."""
 

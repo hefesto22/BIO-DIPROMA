@@ -119,7 +119,15 @@ flujo de instalación en el equipo destino:
 3. Extraer en una carpeta sin permisos de admin requeridos
    (recomendado: `C:\Olympo\zkteco\`).
 4. Crear acceso directo a `zkteco.exe` en el escritorio.
-5. En el primer arranque, el Setup Wizard pedirá crear el SUPERADMIN.
+5. En el primer arranque la app crea sola los usuarios y el turno por
+   defecto (`core/services/instalacion_service.py`):
+   - `admin` / `12345678` — Super Administrador.
+   - `administrador` / `12345678` — Administrador (acceso total).
+   - Turno **Operativo**: lunes a viernes 07:00–17:00 con almuerzo de
+     12:00 a 13:00, sábado 07:00–12:00.
+
+   Conviene cambiar las dos contraseñas desde **Usuarios y roles**. El Setup
+   Wizard solo aparece si esa creación falla.
 
 > **No** instalar dentro de `C:\Program Files\` — esa ruta requiere
 > permisos de admin para escribir el archivo `data\zkteco_app.db`, y el
